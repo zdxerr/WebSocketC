@@ -15,41 +15,37 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 
-static void Server_thread(Server *self);
-static void Client_thread(Client *client);
+static void server_thread(Server *self);
+static void client_thread(Client *client);
 
 static int Client_handshake(char *out, char *in);
 static Frame *Server_frame_parse(char *raw, size_t *frame_length);
 static char *Server_frame_pack(char *data, size_t data_length, size_t *frame_length);
 
-void server_init(Server *self)
+void server_start(Server *server)
 {
-    self->stop = FALSE;
-    self->clients = NULL;
-    self->thread = (HANDLE)_beginthread(Server_thread, 0, self);
+    server->thread = (HANDLE)_beginthread(server_thread, 0, server);
 }
 
-void server_destroy(Server *self)
+void server_stop(Server *server)
 {
-    while(self->clients)
+    server->stop = TRUE;
+    while(server->clients)
     {
         Client *client;
-        self->clients = list_pop(self->clients, &client);
-
+        server->clients = list_pop(server->clients, &client);
         client->stop = TRUE;
         closesocket(client->socket);
         WaitForSingleObject(client->thread, INFINITE);
         free(client);
     }
 
-    self->stop = TRUE;
-
-    closesocket(self->socket);
-    WaitForSingleObject(self->thread, INFINITE);
+    closesocket(server->socket);
+    WaitForSingleObject(server->thread, INFINITE);
 }
 
 /* This function continues to accept tcp connections and creates client threads for them */
-static void Server_thread(Server *self)
+static void server_thread(Server *self)
 {
     WSADATA wsa_data = {0};
     struct sockaddr_in socket_config;
@@ -100,11 +96,10 @@ static void Server_thread(Server *self)
             }
         }
 
-        debug("new client 0x%X", client);
         client_set_callback(client, self->callback, self->callback_data);
 
         /* create new thread for this client */
-        client->thread = (HANDLE)_beginthread(Client_thread, 0, client);
+        client->thread = (HANDLE)_beginthread(client_thread, 0, client);
 
         self->clients = list_push(self->clients, client);
     }
@@ -115,11 +110,11 @@ error:
     _endthread();
 }
 
-static void Client_thread(Client *client)
+static void client_thread(Client *client)
 {
     int error = 0;
     char buffer[BUFFER_SIZE];
-
+    debug("thread start 0x%X", client);
     /* receive handshake */
     error = recv(client->socket, buffer, BUFFER_SIZE, 0);
     if(error == SOCKET_ERROR)
@@ -160,6 +155,10 @@ static void Client_thread(Client *client)
                 case WSAEINTR:
                 case WSAECONNABORTED:
                     continue;
+                case WSAECONNRESET:
+                    /* connection is closed */
+                    client->stop = TRUE;
+                    break;
                 default:
                     log_err("An unexpected error occured: %d", error); /* timeouts are expected */
                     goto error;
@@ -168,17 +167,15 @@ static void Client_thread(Client *client)
 
         while(!client->stop && offset < error )
         {
-
             frame = Server_frame_parse(&buffer[offset], &frame_length);
-
             switch(frame->opcode)
             {
+                case CLOSE:
+                    client->stop = TRUE;
                 case TEXT:
                     offset += frame_length;
                     if(client->callback)
                         client->callback(client, frame->data, client->callback_data);
-                case CLOSE:
-                    client->stop = TRUE;
                 default:
                     break;
             }
@@ -266,8 +263,8 @@ static Frame *Server_frame_parse(char *raw, size_t *frame_length)
 
     /* Get the opcode, and translate it to a local enum which we actually care about. */
     frame->opcode = *raw & 0xF;
-    check(frame->opcode & TEXT || frame->opcode & CLOSE,
-          "Received frame with unsupported opcode (0x%X)!", frame->opcode);
+    check(frame->opcode & TEXT || frame->opcode & CLOSE, "Received frame with unsupported opcode (0x%X)!",
+          frame->opcode);
 
     /* Get the payload length and determine whether we need to look for an extra length. */
     temp = &raw[1];
@@ -375,14 +372,35 @@ void client_set_callback(Client *client, ClientCallback callback, void *data)
     client->callback_data = data;
 }
 
+int server_send(Server *server, char *message)
+{
+    List *node;
+    list_foreach(server->clients, node)
+    {
+        Client *client = (Client *)list_value(node);
+        client_send(client, message);
+    }
+    return 0;
+}
+
 int client_send(Client *client, char *message)
 {
     size_t frame_length;
     char *send_buffer = Server_frame_pack(message, strlen(message), &frame_length);
-    if(send(client->socket, send_buffer, frame_length, 0) == SOCKET_ERROR)
+    check(send_buffer, "Frame packing failed.");;
+
+    if(send(client->socket, send_buffer, frame_length, 0) != SOCKET_ERROR)
     {
-        log_err("send failed with error: %d\n", WSAGetLastError());
+        error = WSAGetLastError();
+        switch(error)
+        {
+            case WSAECONNABORTED:
+                client->stop = TRUE;
+            default:
+                log_err("send failed with error: %d\n", error);
+        }
     }
+error:
     free(send_buffer);
     return 0;
 }

@@ -28,7 +28,6 @@
 
     function onMessage(evt) {
         console.log("RESPONSE: " + evt.data);
-        websocket.close();
     }
 
     function onError(evt) {
@@ -41,7 +40,7 @@
     }
 
     window.addEventListener("load", init, false);
-
+    /* websocket.close(); */
 </script>
 <h2>WebSocket Test</h2>
 <div id="output"></div>

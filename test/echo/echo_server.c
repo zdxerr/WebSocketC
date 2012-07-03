@@ -12,11 +12,15 @@
 void control_thread(Server *server)
 {
     char c;
-    debug("Starting... (enter \"q\" to quit)");
+    debug("Starting... (enter \"b\" to broadcast and \"q\" to quit)");
     do {
         c = getchar();
+        if(c == 'b')
+        {
+            server_send(server, "Broadcasting.");
+        }
     } while(c != 'q');
-    server_destroy(server);
+    server_stop(server);
 }
 
 int client_callback(Client *client, char *message, void *data)
@@ -31,7 +35,7 @@ int main(int argc, char *argv[])
     Server *server = calloc(1, sizeof(Server));
     HANDLE thread = (HANDLE)_beginthread(control_thread, 0, server);
 
-    server_init(server);
+    server_start(server);
     server_set_callback(server, client_callback, NULL);
 
     WaitForSingleObject(thread, INFINITE);

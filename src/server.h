@@ -90,14 +90,12 @@ typedef struct Frame {
     char *data;
 } Frame;
 
-void server_init(Server *self);
-void server_destroy(Server *server);
+void server_start(Server *server);
+void server_stop(Server *server);
 
 void client_set_callback(Client *client, ClientCallback callback, void *data);
 
 int server_send(Server *self, char *message);
 int client_send(Client *client, char *message);
-
-
 
 #endif

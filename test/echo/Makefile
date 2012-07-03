@@ -2,7 +2,7 @@
 SOURCES = echo_server.c
 HEADERS =
 OBJECTS = $(SOURCES:.c=.obj)
-TARGET  = echo.exe
+TARGET  = echo_server.exe
 
 # file system commands
 RM = del /F /Q
