@@ -21,5 +21,5 @@ $(TARGET): $(OBJECTS)
 
 clean:
 	$(RM) *.obj
-	$(RM) *.lib
+	$(RM) *.exe
 

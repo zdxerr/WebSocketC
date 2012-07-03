@@ -25,21 +25,22 @@ static char *Server_frame_pack(char *data, size_t data_length, size_t *frame_len
 void server_init(Server *self)
 {
     self->stop = FALSE;
-    self->clients = calloc(1, sizeof(List));
+    self->clients = NULL;
     self->thread = (HANDLE)_beginthread(Server_thread, 0, self);
-}
-
-void Client_destroy(Client *client)
-{
-    client->stop = TRUE;
-    closesocket(client->socket);
-    WaitForSingleObject(client->thread, INFINITE);
-    free(client);
 }
 
 void server_destroy(Server *self)
 {
-    list_foreach_destroy(self->clients, Client_destroy);
+    while(self->clients)
+    {
+        Client *client;
+        self->clients = list_pop(self->clients, &client);
+
+        client->stop = TRUE;
+        closesocket(client->socket);
+        WaitForSingleObject(client->thread, INFINITE);
+        free(client);
+    }
 
     self->stop = TRUE;
 
@@ -105,9 +106,7 @@ static void Server_thread(Server *self)
         /* create new thread for this client */
         client->thread = (HANDLE)_beginthread(Client_thread, 0, client);
 
-        list_push(self->clients, client);
-
-        debug("pushed %X", self->clients->first->value);
+        self->clients = list_push(self->clients, client);
     }
 error:
     closesocket(self->socket);
