@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<meta charset="utf-8" />
+<title>WebSocket Test</title>
+<script language="javascript" type="text/javascript">
+    var wsUri = "ws://10.1.197.57:80/";
+    var websocket;
+
+    function init() {
+        testWebSocket();
+    }
+
+    function testWebSocket() {
+        websocket = new WebSocket(wsUri, "chat");
+        websocket.onopen = function(evt) { onOpen(evt) };
+        websocket.onclose = function(evt) { onClose(evt) };
+        websocket.onmessage = function(evt) { onMessage(evt) };
+        websocket.onerror = function(evt) { onError(evt) };
+    }
+
+    function onOpen(evt) {
+        console.log("Connected");
+        doSend("YOYOYO");
+    }
+
+    function onClose(evt) {
+        console.log("Disconnected");
+    }
+
+    function onMessage(evt) {
+        console.log("RESPONSE: " + evt.data);
+        websocket.close();
+    }
+
+    function onError(evt) {
+        console.log("ERROR: " + evt.data);
+    }
+
+    function doSend(message) {
+        console.log("SENT: " + message);
+        websocket.send(message);
+    }
+
+    window.addEventListener("load", init, false);
+
+</script>
+<h2>WebSocket Test</h2>
+<div id="output"></div>
+</html>
