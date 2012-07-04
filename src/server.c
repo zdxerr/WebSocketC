@@ -1,4 +1,6 @@
 
+/* A simple websocket server implementing the rfc6455 (http://tools.ietf.org/html/rfc6455) */
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -18,15 +20,18 @@
 static void server_thread(Server *self);
 static void client_thread(Client *client);
 
-static int Client_handshake(char *out, char *in);
-static Frame *Server_frame_parse(char *raw, size_t *frame_length);
-static char *Server_frame_pack(char *data, size_t data_length, size_t *frame_length);
+static int handshake(char *out, char *in);
 
+static Frame *frame_unpack(char *raw, size_t *frame_length);
+static char *frame_pack(char *data, size_t data_length, size_t *frame_length);
+
+/* Start the server thread */
 void server_start(Server *server)
 {
     server->thread = (HANDLE)_beginthread(server_thread, 0, server);
 }
 
+/* Stop the server thread and all client threads and perform cleanup actions. */
 void server_stop(Server *server)
 {
     server->stop = TRUE;
@@ -44,7 +49,7 @@ void server_stop(Server *server)
     WaitForSingleObject(server->thread, INFINITE);
 }
 
-/* This function continues to accept tcp connections and creates client threads for them */
+/* Accept tcp connections and create client threads for them. */
 static void server_thread(Server *self)
 {
     WSADATA wsa_data = {0};
@@ -110,6 +115,7 @@ error:
     _endthread();
 }
 
+/* Calling the callback function when receiving a frame */
 static void client_thread(Client *client)
 {
     int error = 0;
@@ -128,7 +134,7 @@ static void client_thread(Client *client)
         return;
     }
 
-    error = Client_handshake(buffer, buffer);
+    error = handshake(buffer, buffer);
     check(error == 0, "Handshake creation failed.");
 
     /*send handshake */
@@ -167,7 +173,7 @@ static void client_thread(Client *client)
 
         while(!client->stop && offset < error )
         {
-            frame = Server_frame_parse(&buffer[offset], &frame_length);
+            frame = frame_unpack(&buffer[offset], &frame_length);
             switch(frame->opcode)
             {
                 case CLOSE:
@@ -207,7 +213,8 @@ static void make_accept(char *received_key, char *accept)
     strncpy(accept, base64_key, HANDSHAKE_KEY_LENGTH);
 }
 
-static int Client_handshake(char *out, char *in)
+/* Create the outgoing handshake from an incomming handshake request. */
+static int handshake(char *out, char *in)
 {
     Handshake hs;
     char *token = NULL;
@@ -247,7 +254,7 @@ error:
     return -1;
 }
 
-static Frame *Server_frame_parse(char *raw, size_t *frame_length)
+static Frame *frame_unpack(char *raw, size_t *frame_length)
 {
     Frame *frame = calloc(1, sizeof(Frame));
     char *temp;
@@ -325,7 +332,7 @@ error:
 }
 
 /* This function always creates unmasked frames, and attempts to use the smallest possible lengths. */
-static char *Server_frame_pack(char *data, size_t data_length, size_t *frame_length)
+static char *frame_pack(char *data, size_t data_length, size_t *frame_length)
 {
     unsigned int offset;
     char *raw;
@@ -386,10 +393,10 @@ int server_send(Server *server, char *message)
 int client_send(Client *client, char *message)
 {
     size_t frame_length;
-    char *send_buffer = Server_frame_pack(message, strlen(message), &frame_length);
+    char *send_buffer = frame_pack(message, strlen(message), &frame_length);
     check(send_buffer, "Frame packing failed.");;
 
-    if(send(client->socket, send_buffer, frame_length, 0) != SOCKET_ERROR)
+    if(send(client->socket, send_buffer, frame_length, 0) == SOCKET_ERROR)
     {
         error = WSAGetLastError();
         switch(error)

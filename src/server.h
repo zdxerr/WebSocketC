@@ -56,9 +56,22 @@ typedef struct Handshake {
     char protocol[HANDSHAKE_PROTOCOL_LENGTH];
 } Handshake;
 
+typedef struct Server Server;
 typedef struct Client Client;
+typedef struct Frame Frame;
 
 typedef int (*ClientCallback)(Client *client, char *message, void *data);
+
+/* Server Object is initialized with NULL */
+struct Server {
+    int stop; /*< Thread will be stopped if this is TRUE */
+    HANDLE thread; /*< Main thread handle, this thread accepts connections and creates the client threads */
+    SOCKET socket; /*< Listening socket for incomming connections */
+    List *clients; /*< List of connected clients */
+
+    ClientCallback callback;
+    void *callback_data;
+};
 
 struct Client {
     int stop;
@@ -69,26 +82,14 @@ struct Client {
     void *callback_data;
 };
 
-typedef struct Server Server;
-
-struct Server {
-    int stop;
-    HANDLE thread; /**< Main thread handle, this thread accepts connections and creates the client threads */
-    SOCKET socket; /**< Listening socket for incomming connections */
-    List *clients; /**< List of connected clients */
-
-    ClientCallback callback;
-    void *callback_data;
-};
-
-typedef struct Frame {
+struct Frame {
     int fin;
     int opcode;
     int masked;
     unsigned long long length;
     unsigned int keys[4];
     char *data;
-} Frame;
+} ;
 
 void server_start(Server *server);
 void server_stop(Server *server);

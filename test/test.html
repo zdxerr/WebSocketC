@@ -4,6 +4,7 @@
 <script language="javascript" type="text/javascript">
     var wsUri = "ws://10.1.197.57:80/";
     var websocket;
+    var websocket2;
 
     function init() {
         testWebSocket();
@@ -19,7 +20,7 @@
 
     function onOpen(evt) {
         console.log("Connected");
-        doSend("YOYOYO");
+        doSend("This is a test!");
     }
 
     function onClose(evt) {
@@ -42,6 +43,7 @@
     window.addEventListener("load", init, false);
     /* websocket.close(); */
 </script>
+<body>
 <h2>WebSocket Test</h2>
 <div id="output"></div>
 </html>
